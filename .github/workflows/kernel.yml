@@ -21,10 +21,12 @@ jobs:
           wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-release/clang-r416183b.tar.gz
           tar -xf clang-r416183b.tar.gz -C $HOME/clang
 
-      - name: Setup SukiSU
+      - name: Setup SukiSU & Config
         run: |
           curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
           echo -e "\nCONFIG_KSU=y\nCONFIG_OVERLAY_FS=y" >> arch/arm64/configs/rosemary_defconfig
+          # Disable VDSO32 untuk mencegah error linker arm
+          echo "CONFIG_VDSO32=n" >> arch/arm64/configs/rosemary_defconfig
 
       - name: Compile
         run: |
@@ -35,8 +37,9 @@ jobs:
           export CLANG_TRIPLE=aarch64-linux-gnu-
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          
           make rosemary_defconfig
-          make -j$(nproc)
+          make -j$(nproc) LD=ld.lld CROSS_COMPILE_ARM32=arm-linux-gnueabi- KCFLAGS="-Wno-error" DTC_EXT=dtc
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
