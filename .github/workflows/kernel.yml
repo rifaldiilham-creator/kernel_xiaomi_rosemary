@@ -21,16 +21,22 @@ jobs:
           wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-release/clang-r416183b.tar.gz
           tar -xf clang-r416183b.tar.gz -C $HOME/clang
 
-      - name: Setup SukiSU & Config
+      - name: Setup SukiSU & Fix Configs
         run: |
           curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
           echo -e "\nCONFIG_KSU=y\nCONFIG_OVERLAY_FS=y" >> arch/arm64/configs/rosemary_defconfig
           
-          # Matikan VDSO32 dan Stack Protector yang bikin error di Clang
+          # Matikan config yang bentrok dengan Clang 12
           scripts/config --file arch/arm64/configs/rosemary_defconfig --disable CONFIG_VDSO32
           scripts/config --file arch/arm64/configs/rosemary_defconfig --disable CONFIG_COMPAT_VDSO
           scripts/config --file arch/arm64/configs/rosemary_defconfig --disable CONFIG_CC_STACKPROTECTOR_STRONG
           scripts/config --file arch/arm64/configs/rosemary_defconfig --enable CONFIG_CC_STACKPROTECTOR_NONE
+          scripts/config --file arch/arm64/configs/rosemary_defconfig --disable CONFIG_LLVM_POLLY
+          scripts/config --file arch/arm64/configs/rosemary_defconfig --disable CONFIG_POLLY_CLANG
+          
+          # Hapus paksa flag Polly LLVM dari semua file Makefile
+          find . -name "Makefile" -exec sed -i 's/-mllvm -polly[^ ]*//g' {} +
+          find . -name "Makefile" -exec sed -i 's/-mllvm -polly//g' {} +
 
       - name: Compile
         run: |
