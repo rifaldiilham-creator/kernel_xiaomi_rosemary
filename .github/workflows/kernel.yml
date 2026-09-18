@@ -13,44 +13,38 @@ jobs:
       - name: Install Build Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev zip unzip make libncurses-dev
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev zip unzip make clang gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Get Clang 12 & GCC 4.9 AOSP
+      - name: Get Clang 12
         run: |
-          mkdir -p $HOME/clang $HOME/gcc64 $HOME/gcc32
-          
-          # Clang 12
+          mkdir -p $HOME/clang
           wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-release/clang-r416183b.tar.gz
           tar -xf clang-r416183b.tar.gz -C $HOME/clang
-          
-          # GCC 64-bit (aarch64)
-          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 $HOME/gcc64
-          
-          # GCC 32-bit (arm)
-          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9 $HOME/gcc32
 
-      - name: Setup SukiSU
+      - name: Setup SukiSU & Config
         run: |
           curl -LSs "https://raw.githubusercontent.com/sukisu-ultra/sukisu-ultra/main/kernel/setup.sh" | bash -
           echo -e "\nCONFIG_KSU=y\nCONFIG_OVERLAY_FS=y" >> arch/arm64/configs/rosemary_defconfig
+          
+          # Matikan VDSO32 dan Stack Protector yang bikin error di Clang
+          scripts/config --file arch/arm64/configs/rosemary_defconfig --disable CONFIG_VDSO32
+          scripts/config --file arch/arm64/configs/rosemary_defconfig --disable CONFIG_COMPAT_VDSO
+          scripts/config --file arch/arm64/configs/rosemary_defconfig --disable CONFIG_CC_STACKPROTECTOR_STRONG
+          scripts/config --file arch/arm64/configs/rosemary_defconfig --enable CONFIG_CC_STACKPROTECTOR_NONE
 
       - name: Compile
         run: |
-          export PATH="$HOME/clang/bin:$HOME/gcc64/bin:$HOME/gcc32/bin:$PATH"
+          export PATH="$HOME/clang/bin:$PATH"
           
-          make rosemary_defconfig
-          make -j$(nproc) \
-            ARCH=arm64 \
-            SUBARCH=arm64 \
+          make ARCH=arm64 O=out rosemary_defconfig
+          make -j$(nproc) ARCH=arm64 O=out \
             CC=clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-android- \
-            CROSS_COMPILE_ARM32=arm-linux-androideabi- \
-            KCFLAGS="-Wno-error" \
-            DTC_EXT=dtc
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            KCFLAGS="-Wno-error"
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
           name: Image.gz-dtb-SukiSU
-          path: arch/arm64/boot/Image.gz-dtb
+          path: out/arch/arm64/boot/Image.gz-dtb
