@@ -47,6 +47,7 @@ jobs:
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            LD=aarch64-linux-gnu-ld.bfd \
             KCFLAGS="-Wno-error"
 
       - name: Upload Result
